@@ -159,7 +159,7 @@ drug_nonzero_feat, drug_num_feat = drug_feat.shape
 drug_feat = preprocessing.sparse_to_tuple(drug_feat.tocoo())
 
 # data representation
-num_feat = {
+num_feat = {    # input dim
     0: gene_num_feat,
     1: drug_num_feat,
 }

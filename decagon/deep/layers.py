@@ -68,7 +68,7 @@ class MultiLayer(object):
 
 
 class GraphConvolutionSparseMulti(MultiLayer):
-    """Graph convolution layer for sparse inputs."""
+    """Graph convolution layer for sparse inputs. THe first layer"""
     def __init__(self, input_dim, output_dim, adj_mats,
                  nonzero_feat, dropout=0., act=tf.nn.relu, **kwargs):
         super(GraphConvolutionSparseMulti, self).__init__(**kwargs)
@@ -86,16 +86,18 @@ class GraphConvolutionSparseMulti(MultiLayer):
         outputs = []
         for k in range(self.num_types):
             x = dropout_sparse(inputs, 1-self.dropout, self.nonzero_feat[self.edge_type[1]])
-            x = tf.sparse_tensor_dense_matmul(x, self.vars['weights_%d' % k])
+            x = tf.sparse_tensor_dense_matmul(x, self.vars['weights_%d' % k]) # matrix multiplication
             x = tf.sparse_tensor_dense_matmul(self.adj_mats[self.edge_type][k], x)
             outputs.append(self.act(x))
-        outputs = tf.add_n(outputs)
+        outputs = tf.add_n(outputs)  # Adds all input tensors element-wise.
+        # Dim is dimension along which to normalize, direction of operation
+        # dim=1 means normalizing row by row
         outputs = tf.nn.l2_normalize(outputs, dim=1)
         return outputs
 
 
 class GraphConvolutionMulti(MultiLayer):
-    """Basic graph convolution layer for undirected graph without edge labels."""
+    """Basic graph convolution layer for undirected graph without edge labels. THe second layer"""
     def __init__(self, input_dim, output_dim, adj_mats, dropout=0., act=tf.nn.relu, **kwargs):
         super(GraphConvolutionMulti, self).__init__(**kwargs)
         self.adj_mats = adj_mats
@@ -111,6 +113,7 @@ class GraphConvolutionMulti(MultiLayer):
         for k in range(self.num_types):
             x = tf.nn.dropout(inputs, 1-self.dropout)
             x = tf.matmul(x, self.vars['weights_%d' % k])
+            # ensure only using weights between connected nodes
             x = tf.sparse_tensor_dense_matmul(self.adj_mats[self.edge_type][k], x)
             outputs.append(self.act(x))
         outputs = tf.add_n(outputs)

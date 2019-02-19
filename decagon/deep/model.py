@@ -5,7 +5,7 @@ import tensorflow as tf
 from .layers import GraphConvolutionMulti, GraphConvolutionSparseMulti, \
     DistMultDecoder, InnerProductDecoder, DEDICOMDecoder, BilinearDecoder
 
-flags = tf.app.flags
+flags = tf.app.flags  # see details in main.py
 FLAGS = flags.FLAGS
 
 
@@ -62,11 +62,11 @@ class DecagonModel(Model):
         self.build()
 
     def _build(self):
-        self.hidden1 = defaultdict(list)
+        self.hidden1 = defaultdict(list)  # the default value of defaultdict(list) is []
         for i, j in self.edge_types:
             self.hidden1[i].append(GraphConvolutionSparseMulti(
                 input_dim=self.input_dim, output_dim=FLAGS.hidden1,
-                edge_type=(i,j), num_types=self.edge_types[i,j],
+                edge_type=(i, j), num_types=self.edge_types[i, j],
                 adj_mats=self.adj_mats, nonzero_feat=self.nonzero_feat,
                 act=lambda x: x, dropout=self.dropout,
                 logging=self.logging)(self.inputs[j]))
@@ -78,7 +78,7 @@ class DecagonModel(Model):
         for i, j in self.edge_types:
             self.embeddings_reltyp[i].append(GraphConvolutionMulti(
                 input_dim=FLAGS.hidden1, output_dim=FLAGS.hidden2,
-                edge_type=(i,j), num_types=self.edge_types[i,j],
+                edge_type=(i, j), num_types=self.edge_types[i, j],
                 adj_mats=self.adj_mats, act=lambda x: x,
                 dropout=self.dropout, logging=self.logging)(self.hidden1[j]))
 

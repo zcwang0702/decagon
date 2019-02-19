@@ -137,15 +137,16 @@ class EdgeMinibatchIterator(object):
     def update_feed_dict(self, feed_dict, dropout, placeholders):
         # construct feed dictionary
         feed_dict.update({
-            placeholders['adj_mats_%d,%d,%d' % (i,j,k)]: self.adj_train[i,j][k]
-            for i, j in self.edge_types for k in range(self.edge_types[i,j])})
+            placeholders['adj_mats_%d,%d,%d' % (i, j, k)]: self.adj_train[i, j][k]
+            for i, j in self.edge_types for k in range(self.edge_types[i, j])})
         feed_dict.update({placeholders['feat_%d' % i]: self.feat[i] for i, _ in self.edge_types})
         feed_dict.update({placeholders['dropout']: dropout})
 
         return feed_dict
 
     def batch_feed_dict(self, batch_edges, batch_edge_type, placeholders):
-        feed_dict = dict()
+        feed_dict = dict()  # The update() method adds element(s) to the dictionary if the key is not in the dictionary.
+        # If the key is in the dictionary, it updates the key with the new value.
         feed_dict.update({placeholders['batch']: batch_edges})
         feed_dict.update({placeholders['batch_edge_type_idx']: batch_edge_type})
         feed_dict.update({placeholders['batch_row_edge_type']: self.idx2edge_type[batch_edge_type][0]})
