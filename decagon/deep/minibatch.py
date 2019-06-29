@@ -16,6 +16,7 @@ class EdgeMinibatchIterator(object):
     placeholders -- tensorflow placeholders object
     batch_size -- size of the minibatches
     """
+
     def __init__(self, adj_mats, feat, edge_types, batch_size=100, val_test_size=0.01):
         self.adj_mats = adj_mats
         self.feat = feat
@@ -25,34 +26,34 @@ class EdgeMinibatchIterator(object):
         self.num_edge_types = sum(self.edge_types.values())
 
         self.iter = 0
-        self.freebatch_edge_types= list(range(self.num_edge_types))
-        self.batch_num = [0]*self.num_edge_types
+        self.freebatch_edge_types = list(range(self.num_edge_types))
+        self.batch_num = [0] * self.num_edge_types
         self.current_edge_type_idx = 0
         self.edge_type2idx = {}
         self.idx2edge_type = {}
         r = 0
         for i, j in self.edge_types:
-            for k in range(self.edge_types[i,j]):
+            for k in range(self.edge_types[i, j]):
                 self.edge_type2idx[i, j, k] = r
                 self.idx2edge_type[r] = i, j, k
                 r += 1
 
-        self.train_edges = {edge_type: [None]*n for edge_type, n in self.edge_types.items()}
-        self.val_edges = {edge_type: [None]*n for edge_type, n in self.edge_types.items()}
-        self.test_edges = {edge_type: [None]*n for edge_type, n in self.edge_types.items()}
-        self.test_edges_false = {edge_type: [None]*n for edge_type, n in self.edge_types.items()}
-        self.val_edges_false = {edge_type: [None]*n for edge_type, n in self.edge_types.items()}
+        self.train_edges = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
+        self.val_edges = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
+        self.test_edges = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
+        self.test_edges_false = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
+        self.val_edges_false = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
 
         # Function to build test and val sets with val_test_size positive links
-        self.adj_train = {edge_type: [None]*n for edge_type, n in self.edge_types.items()}
+        self.adj_train = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
         for i, j in self.edge_types:
-            for k in range(self.edge_types[i,j]):
+            for k in range(self.edge_types[i, j]):
                 print("Minibatch edge type:", "(%d, %d, %d)" % (i, j, k))
                 self.mask_test_edges((i, j), k)
 
-                print("Train edges=", "%04d" % len(self.train_edges[i,j][k]))
-                print("Val edges=", "%04d" % len(self.val_edges[i,j][k]))
-                print("Test edges=", "%04d" % len(self.test_edges[i,j][k]))
+                print("Train edges=", "%04d" % len(self.train_edges[i, j][k]))
+                print("Val edges=", "%04d" % len(self.val_edges[i, j][k]))
+                print("Test edges=", "%04d" % len(self.test_edges[i, j][k]))
 
     def preprocess_graph(self, adj):
         adj = sp.coo_matrix(adj)
@@ -176,7 +177,7 @@ class EdgeMinibatchIterator(object):
 
             i, j, k = self.idx2edge_type[self.current_edge_type_idx]
             if self.batch_num[self.current_edge_type_idx] * self.batch_size \
-                   <= len(self.train_edges[i,j][k]) - self.batch_size + 1:
+                    <= len(self.train_edges[i, j][k]) - self.batch_size + 1:
                 break
             else:
                 if self.iter % 4 in [0, 1, 2]:
@@ -187,7 +188,7 @@ class EdgeMinibatchIterator(object):
         self.iter += 1
         start = self.batch_num[self.current_edge_type_idx] * self.batch_size
         self.batch_num[self.current_edge_type_idx] += 1
-        batch_edges = self.train_edges[i,j][k][start: start + self.batch_size]
+        batch_edges = self.train_edges[i, j][k][start: start + self.batch_size]
         return self.batch_feed_dict(batch_edges, self.current_edge_type_idx, placeholders)
 
     def num_training_batches(self, edge_type, type_idx):
