@@ -3,11 +3,11 @@ from __future__ import print_function
 
 import numpy as np
 import scipy.sparse as sp
-
+import multiprocessing
+import functools
 from ..utility import preprocessing
 
 np.random.seed(123)
-
 
 class EdgeMinibatchIterator(object):
     """ This minibatch iterator iterates over batches of sampled edges or
@@ -43,18 +43,18 @@ class EdgeMinibatchIterator(object):
         self.test_edges = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
         self.test_edges_false = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
         self.val_edges_false = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
-
-        # Function to build test and val sets with val_test_size positive links
+        
         self.adj_train = {edge_type: [None] * n for edge_type, n in self.edge_types.items()}
+        
+        # Function to build test and val sets with val_test_size positive links
         for i, j in self.edge_types:
             for k in range(self.edge_types[i, j]):
                 print("Minibatch edge type:", "(%d, %d, %d)" % (i, j, k))
                 self.mask_test_edges((i, j), k)
-
                 print("Train edges=", "%04d" % len(self.train_edges[i, j][k]))
                 print("Val edges=", "%04d" % len(self.val_edges[i, j][k]))
                 print("Test edges=", "%04d" % len(self.test_edges[i, j][k]))
-
+        
     def preprocess_graph(self, adj):
         adj = sp.coo_matrix(adj)
         if adj.shape[0] == adj.shape[1]:
@@ -92,32 +92,44 @@ class EdgeMinibatchIterator(object):
 
         train_edges = np.delete(edges_all, np.hstack([test_edge_idx, val_edge_idx]), axis=0)
 
-        test_edges_false = []
-        while len(test_edges_false) < len(test_edges):
-            if len(test_edges_false) % 1000 == 0:
-                print("Constructing test edges=", "%04d/%04d" % (len(test_edges_false), len(test_edges)))
-            idx_i = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[0])
-            idx_j = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[1])
-            if self._ismember([idx_i, idx_j], edges_all):
-                continue
-            if test_edges_false:
-                if self._ismember([idx_i, idx_j], test_edges_false):
-                    continue
-            test_edges_false.append([idx_i, idx_j])
+#         test_edges_false = []
+#         while len(test_edges_false) < len(test_edges):
+#             if len(test_edges_false) % 1000 == 0:
+#                 print("Constructing test edges=", "%04d/%04d" % (len(test_edges_false), len(test_edges)))
+#             idx_i = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[0])
+#             idx_j = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[1])
+#             if self._ismember([idx_i, idx_j], edges_all):
+#                 continue
+#             if test_edges_false:
+#                 if self._ismember([idx_i, idx_j], test_edges_false):
+#                     continue
+#             test_edges_false.append([idx_i, idx_j])
 
-        val_edges_false = []
-        while len(val_edges_false) < len(val_edges):
-            if len(val_edges_false) % 1000 == 0:
-                print("Constructing val edges=", "%04d/%04d" % (len(val_edges_false), len(val_edges)))
-            idx_i = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[0])
-            idx_j = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[1])
-            if self._ismember([idx_i, idx_j], edges_all):
-                continue
-            if val_edges_false:
-                if self._ismember([idx_i, idx_j], val_edges_false):
-                    continue
-            val_edges_false.append([idx_i, idx_j])
+        mx = self.adj_mats[edge_type][type_idx].todense()
+        disconnected_mx = 1 - mx
+        disconnected_edges = np.vstack(np.where(disconnected_mx == 1)).transpose()
 
+        test_indices = np.random.choice(disconnected_edges.shape[0], len(test_edges), replace=False)
+        test_edges_false = disconnected_edges[test_indices].tolist()
+        print(edge_type, type_idx, 'Constructed test edges')
+        
+#         val_edges_false = []
+#         while len(val_edges_false) < len(val_edges):
+#             if len(val_edges_false) % 1000 == 0:
+#                 print("Constructing val edges=", "%04d/%04d" % (len(val_edges_false), len(val_edges)))
+#             idx_i = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[0])
+#             idx_j = np.random.randint(0, self.adj_mats[edge_type][type_idx].shape[1])
+#             if self._ismember([idx_i, idx_j], edges_all):
+#                 continue
+#             if val_edges_false:
+#                 if self._ismember([idx_i, idx_j], val_edges_false):
+#                     continue
+#             val_edges_false.append([idx_i, idx_j])
+
+        val_indices = np.random.choice(disconnected_edges.shape[0], len(val_edges), replace=False)
+        val_edges_false = disconnected_edges[val_indices].tolist()
+        print(edge_type, type_idx, 'Constructed val edges')
+        
         # Re-build adj matrices
         data = np.ones(train_edges.shape[0])
         adj_train = sp.csr_matrix(

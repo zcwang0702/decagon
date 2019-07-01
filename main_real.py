@@ -19,18 +19,17 @@ from decagon.deep.optimizer import DecagonOptimizer
 from decagon.deep.model import DecagonModel
 from decagon.deep.minibatch import EdgeMinibatchIterator
 from decagon.utility import rank_metrics, preprocessing
-from polypharmacy.utility \
-    import *
+from polypharmacy.utility import *
 from collections import Counter
 
 # Train on CPU (hide GPU) due to memory constraints
-os.environ['CUDA_VISIBLE_DEVICES'] = ""
+# os.environ['CUDA_VISIBLE_DEVICES'] = ""
 
 # Train on GPU
-# os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
-# os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-# config = tf.ConfigProto()
-# config.gpu_options.allow_growth = True
+os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
 
 np.random.seed(0)
 
@@ -188,19 +187,18 @@ data = np.ones_like(row)
 gene_drug_adj = sp.csr_matrix((data, (row, col)), shape=(len(gene_idx_dict), len(drug_id)))
 drug_gene_adj = gene_drug_adj.transpose(copy=True)
 
-mat = np.zeros((n_drugs, n_drugs))
-drug_drug_adj_list = [mat] * n_drugdrug_rel_types
 
+drug_drug_adj_list = np.zeros([n_drugdrug_rel_types, n_drugs, n_drugs])
 for drug_pair, se_list in combo2se.items():
     drug_1, drug_2 = combo2stitch[drug_pair]
     drug_1_id, drug_2_id = drug_idx_dict[drug_1], drug_idx_dict[drug_2]
-
+    
     for se in se_list:
         if se in se_idx_dict:
-            se_idx = se_idx_dict[se]
+            se_idx = se_idx_dict[se]            
             drug_drug_adj_list[se_idx][drug_1_id, drug_2_id] = 1
             drug_drug_adj_list[se_idx][drug_2_id, drug_1_id] = 1
-
+            
 drug_drug_adj_list = [sp.csr_matrix(mat) for mat in drug_drug_adj_list]
 drug_degrees_list = [np.array(drug_adj.sum(axis=0)).squeeze() for drug_adj in drug_drug_adj_list]
 
@@ -292,7 +290,7 @@ flags.DEFINE_integer('hidden2', 32, 'Number of units in hidden layer 2.')
 flags.DEFINE_float('weight_decay', 0, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_float('dropout', 0.1, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('max_margin', 0.1, 'Max margin parameter in hinge loss')
-flags.DEFINE_integer('batch_size', 512, 'minibatch size.')
+flags.DEFINE_integer('batch_size', 32, 'minibatch size.')
 flags.DEFINE_boolean('bias', True, 'Bias term.')
 # Important -- Do not evaluate/print validation performance every iteration as it can take
 # substantial amount of time
