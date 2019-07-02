@@ -78,6 +78,12 @@ def load_mono_se(fname):
     n_interactions = sum([len(v) for v in stitch2se.values()])
     print('Individual drug side effect total number: %d' % n_interactions)
     print('Unique drug number: %d' % len(stitch2se))
+
+    all_se = []
+    for se_dict in stitch2se.values():
+        all_se += list(se_dict)
+
+    print('Unique side effect number : %d' % len(set(all_se)))
     return stitch2se, se2name
 
 
@@ -115,4 +121,5 @@ def load_categories(fname):
         se2class[se] = se_class
 
     print('unique side effect class number: %d' % len(set(se2class.values())))
+    print('unique side effect name: %d' % len(set(se2name.values())))
     return se2class, se2name

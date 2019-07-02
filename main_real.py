@@ -4,7 +4,7 @@ from operator import itemgetter
 from itertools import combinations
 import time
 import os
-
+import logging
 import sys
 
 sys.path.insert(0, './')
@@ -22,12 +22,15 @@ from decagon.utility import rank_metrics, preprocessing
 from polypharmacy.utility import *
 from collections import Counter
 
+from decagon.utility.visualization import WriterTensorboardX
+import datetime
+
 # Train on CPU (hide GPU) due to memory constraints
 # os.environ['CUDA_VISIBLE_DEVICES'] = ""
 
 # Train on GPU
 os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
@@ -187,31 +190,30 @@ data = np.ones_like(row)
 gene_drug_adj = sp.csr_matrix((data, (row, col)), shape=(len(gene_idx_dict), len(drug_id)))
 drug_gene_adj = gene_drug_adj.transpose(copy=True)
 
-
 drug_drug_adj_list = np.zeros([n_drugdrug_rel_types, n_drugs, n_drugs])
 for drug_pair, se_list in combo2se.items():
     drug_1, drug_2 = combo2stitch[drug_pair]
     drug_1_id, drug_2_id = drug_idx_dict[drug_1], drug_idx_dict[drug_2]
-    
+
     for se in se_list:
         if se in se_idx_dict:
-            se_idx = se_idx_dict[se]            
+            se_idx = se_idx_dict[se]
             drug_drug_adj_list[se_idx][drug_1_id, drug_2_id] = 1
             drug_drug_adj_list[se_idx][drug_2_id, drug_1_id] = 1
-            
+
 drug_drug_adj_list = [sp.csr_matrix(mat) for mat in drug_drug_adj_list]
 drug_degrees_list = [np.array(drug_adj.sum(axis=0)).squeeze() for drug_adj in drug_drug_adj_list]
 
 # data representation
 adj_mats_orig = {
-    (0, 0): [gene_adj, gene_adj.transpose(copy=True)],
+    (0, 0): [gene_adj],
     (0, 1): [gene_drug_adj],
     (1, 0): [drug_gene_adj],
-    (1, 1): drug_drug_adj_list + [x.transpose(copy=True) for x in drug_drug_adj_list],
+    (1, 1): drug_drug_adj_list,
 }
 degrees = {
-    0: [gene_degrees, gene_degrees],
-    1: drug_degrees_list + drug_degrees_list,
+    0: [gene_degrees],
+    1: drug_degrees_list,
 }
 
 # featureless (genes)
@@ -284,17 +286,17 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('neg_sample_size', 1, 'Negative sample size.')
 flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate.')
-flags.DEFINE_integer('epochs', 50, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 64, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 32, 'Number of units in hidden layer 2.')
 flags.DEFINE_float('weight_decay', 0, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_float('dropout', 0.1, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('max_margin', 0.1, 'Max margin parameter in hinge loss')
-flags.DEFINE_integer('batch_size', 32, 'minibatch size.')
+flags.DEFINE_integer('batch_size', 512, 'minibatch size.')
 flags.DEFINE_boolean('bias', True, 'Bias term.')
 # Important -- Do not evaluate/print validation performance every iteration as it can take
 # substantial amount of time
-PRINT_PROGRESS_EVERY = 150
+PRINT_PROGRESS_EVERY = 500
 
 print("Defining placeholders")
 placeholders = construct_placeholders(edge_types)
@@ -342,6 +344,59 @@ sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 feed_dict = {}
 
+# setup visualization writer instance
+
+start_time = datetime.datetime.now().strftime('%m%d_%H%M%S')
+writer_dir = os.path.join('./experiment/log/', start_time)
+
+if not os.path.exists(writer_dir):
+    os.makedirs(writer_dir)
+
+writer = WriterTensorboardX(writer_dir, logging.getLogger(start_time), enable=True)
+
+
+###########################################################
+#
+# epoch evaluation
+#
+###########################################################
+
+def epoch_eval(minibatch, epoch, mode='val'):
+
+    side_effect_roc_score = []
+    side_effect_auprc_score = []
+    side_effect_apk_score = []
+    for et in range(num_edge_types):
+        if mode == 'val':
+            roc_score, auprc_score, apk_score = get_accuracy_scores(
+                minibatch.val_edges, minibatch.val_edges_false, minibatch.idx2edge_type[et])
+        if mode == 'test':
+            roc_score, auprc_score, apk_score = get_accuracy_scores(
+                minibatch.test_edges, minibatch.test_edges_false, minibatch.idx2edge_type[et])
+        #     print("Edge type=", "[%02d, %02d, %02d]" % minibatch.idx2edge_type[et])
+        #     print("Edge type:", "%04d" % et, "Test AUROC score", "{:.5f}".format(roc_score))
+        #     print("Edge type:", "%04d" % et, "Test AUPRC score", "{:.5f}".format(auprc_score))
+        #     print("Edge type:", "%04d" % et, "Test AP@k score", "{:.5f}".format(apk_score))
+
+        writer.set_step(epoch, mode)
+        if et <= 2:
+            writer.add_scalars('%04d_roc_score' % (et), roc_score)
+            writer.add_scalars('%04d_auprc_score' % (et), auprc_score)
+            writer.add_scalars('%04d_apk_score' % (et), apk_score)
+        else:
+            side_effect_roc_score.append(roc_score)
+            side_effect_auprc_score.append(auprc_score)
+            side_effect_apk_score.append(apk_score)
+
+    writer.add_scalars('ave_side_effect_auc_score', np.mean(side_effect_roc_score))
+    writer.add_scalars('ave_side_effect_auprc_score', np.mean(side_effect_auprc_score))
+    writer.add_scalars('ave_side_effect_apk_score', np.mean(side_effect_apk_score))
+
+    writer.add_histogram('distribution_side_effect_auc_score', side_effect_roc_score)
+    writer.add_histogram('distribution_side_effect_auprc_score', side_effect_auprc_score)
+    writer.add_histogram('distribution_side_effect_apk_score', side_effect_apk_score)
+
+
 ###########################################################
 #
 # Train model
@@ -352,6 +407,7 @@ print("Train model")
 for epoch in range(FLAGS.epochs):
 
     minibatch.shuffle()
+
     itr = 0
     while not minibatch.end():
         # Construct feed dictionary
@@ -378,15 +434,10 @@ for epoch in range(FLAGS.epochs):
                   "val_roc=", "{:.5f}".format(val_auc), "val_auprc=", "{:.5f}".format(val_auprc),
                   "val_apk=", "{:.5f}".format(val_apk), "time=", "{:.5f}".format(time.time() - t))
 
+        if itr == 0:  # test model for each epoch
+            print("test model !!!")
+            epoch_eval(minibatch, epoch, mode='test')
+
         itr += 1
 
 print("Optimization finished!")
-
-for et in range(num_edge_types):
-    roc_score, auprc_score, apk_score = get_accuracy_scores(
-        minibatch.test_edges, minibatch.test_edges_false, minibatch.idx2edge_type[et])
-    print("Edge type=", "[%02d, %02d, %02d]" % minibatch.idx2edge_type[et])
-    print("Edge type:", "%04d" % et, "Test AUROC score", "{:.5f}".format(roc_score))
-    print("Edge type:", "%04d" % et, "Test AUPRC score", "{:.5f}".format(auprc_score))
-    print("Edge type:", "%04d" % et, "Test AP@k score", "{:.5f}".format(apk_score))
-    print()
