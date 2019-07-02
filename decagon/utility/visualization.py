@@ -32,7 +32,6 @@ class WriterTensorboardX():
             return add_data() methods of tensorboard with additional information (step, tag) added.
         Otherwise:
             return blank function handle that does nothing
-
         __getattr__ will allow you to “catch” references to attributes that don’t exist in this object
         """
         if name in self.tensorboard_writer_ftns:
@@ -40,7 +39,10 @@ class WriterTensorboardX():
 
             def wrapper(tag, data, *args, **kwargs):
                 if add_data is not None:
-                    add_data('{}'.format(tag), {'{}'.format(self.mode): data}, self.step, *args, **kwargs)
+                    if name == 'add_scalars':
+                        add_data('{}'.format(tag), {'{}'.format(self.mode): data}, self.step, *args, **kwargs)
+                    else:
+                        add_data('{}'.format(tag), data, self.step, *args, **kwargs)
 
             return wrapper
         else:

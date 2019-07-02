@@ -362,6 +362,10 @@ writer = WriterTensorboardX(writer_dir, logging.getLogger(start_time), enable=Tr
 ###########################################################
 
 def epoch_eval(minibatch, epoch, mode='val'):
+    # test #
+    test_list = [1, 2, 3, 4, 5]
+    writer.add_scalars('ave_test', np.mean(test_list))
+    writer.add_histogram('distribution_test', np.array(test_list))
 
     side_effect_roc_score = []
     side_effect_auprc_score = []
@@ -392,9 +396,9 @@ def epoch_eval(minibatch, epoch, mode='val'):
     writer.add_scalars('ave_side_effect_auprc_score', np.mean(side_effect_auprc_score))
     writer.add_scalars('ave_side_effect_apk_score', np.mean(side_effect_apk_score))
 
-    writer.add_histogram('distribution_side_effect_auc_score', side_effect_roc_score)
-    writer.add_histogram('distribution_side_effect_auprc_score', side_effect_auprc_score)
-    writer.add_histogram('distribution_side_effect_apk_score', side_effect_apk_score)
+    writer.add_histogram('distribution_side_effect_auc_score', np.array(side_effect_roc_score))
+    writer.add_histogram('distribution_side_effect_auprc_score', np.array(side_effect_auprc_score))
+    writer.add_histogram('distribution_side_effect_apk_score', np.array(side_effect_apk_score))
 
 
 ###########################################################
