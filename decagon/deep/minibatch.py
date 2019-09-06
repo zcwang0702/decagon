@@ -89,7 +89,7 @@ class EdgeMinibatchIterator(object):
 
         test_edge_idx = all_edge_idx[num_val:(num_val + num_test)]
         test_edges = edges_all[test_edge_idx]
-
+        # todo it might cause data linkage; split the edges independently for different type_idx
         train_edges = np.delete(edges_all, np.hstack([test_edge_idx, val_edge_idx]), axis=0)
 
         #         test_edges_false = []

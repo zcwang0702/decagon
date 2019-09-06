@@ -33,6 +33,7 @@ class DecagonOptimizer(object):
         self.obj_type_lookup_end = tf.cumsum(obj_type_n)
 
         labels = tf.reshape(tf.cast(self.row_inputs, dtype=tf.int64), [self.batch_size, 1])
+        # negative edge sampler!!!
         neg_samples_list = []
         for i, j in self.edge_types:
             for k in range(self.edge_types[i, j]):
